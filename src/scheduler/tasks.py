@@ -11,7 +11,7 @@ import uuid
 
 from .celery_app import celery_app
 from src.nitter_manager import NitterInstanceManager
-from src.scrapers import ProfileScraper, TimelineScraper, SearchScraper, ThreadScraper
+from src.scrapers import ProfileScraper, TimelineScraper, SearchScraper, ThreadScraper, TwitterDirectScraper
 from src.data_processing import (
     TextCleaner, DataExtractor, SentimentAnalyzer, EngagementCalculator
 )
@@ -66,9 +66,33 @@ async def scrape_user_profile(self, username: str) -> Dict:
         if not instance_manager._health_check_task:
             await instance_manager.start()
 
-        # Scrape profile
-        async with ProfileScraper(instance_manager) as scraper:
-            profile_data = await scraper.scrape_profile(username)
+        profile_data = None
+
+        # Try Twitter Direct if enabled
+        if settings.use_twitter_direct and settings.twitter_username and settings.twitter_password:
+            logger.info(f"Using Twitter Direct scraper for {username}")
+            async with TwitterDirectScraper(
+                instance_manager,
+                settings.twitter_username,
+                settings.twitter_password
+            ) as scraper:
+                profile_data = await scraper.scrape_profile(username)
+
+        # Fallback to Nitter if Twitter Direct disabled or failed
+        if not profile_data:
+            logger.info(f"Using Nitter scraper for {username}")
+            async with ProfileScraper(instance_manager) as scraper:
+                profile_data = await scraper.scrape_profile(username)
+
+            # If Nitter failed and we have Twitter credentials, try Twitter Direct as fallback
+            if not profile_data and settings.twitter_username and settings.twitter_password:
+                logger.warning(f"Nitter failed for {username}, falling back to Twitter Direct")
+                async with TwitterDirectScraper(
+                    instance_manager,
+                    settings.twitter_username,
+                    settings.twitter_password
+                ) as scraper:
+                    profile_data = await scraper.scrape_profile(username)
 
         if not profile_data:
             raise Exception(f"Failed to scrape profile: {username}")
@@ -146,9 +170,33 @@ async def scrape_user_timeline(self, username: str, max_tweets: int = 100) -> Li
         if not instance_manager._health_check_task:
             await instance_manager.start()
 
-        # Scrape timeline
-        async with TimelineScraper(instance_manager) as scraper:
-            tweets = await scraper.scrape_timeline(username, max_tweets)
+        tweets = []
+
+        # Try Twitter Direct if enabled
+        if settings.use_twitter_direct and settings.twitter_username and settings.twitter_password:
+            logger.info(f"Using Twitter Direct scraper for {username} timeline")
+            async with TwitterDirectScraper(
+                instance_manager,
+                settings.twitter_username,
+                settings.twitter_password
+            ) as scraper:
+                tweets = await scraper.scrape_timeline(username, max_tweets)
+
+        # Fallback to Nitter if Twitter Direct disabled or failed
+        if not tweets:
+            logger.info(f"Using Nitter scraper for {username} timeline")
+            async with TimelineScraper(instance_manager) as scraper:
+                tweets = await scraper.scrape_timeline(username, max_tweets)
+
+            # If Nitter failed and we have Twitter credentials, try Twitter Direct as fallback
+            if not tweets and settings.twitter_username and settings.twitter_password:
+                logger.warning(f"Nitter failed for {username} timeline, falling back to Twitter Direct")
+                async with TwitterDirectScraper(
+                    instance_manager,
+                    settings.twitter_username,
+                    settings.twitter_password
+                ) as scraper:
+                    tweets = await scraper.scrape_timeline(username, max_tweets)
 
         # Process and save tweets
         saved_count = 0
