@@ -58,6 +58,26 @@ If one method fails, it automatically falls back to the next. This ensures **max
 | **Nitter** | Free | ⚡ Fast | ❌ Blocked | Easy |
 | Official Twitter API | $100-5000/mo | ⚡ Instant | ✅✅✅ Excellent | Hard |
 
+## 📚 Documentation
+
+**Getting Started:**
+- **[QUICK_START.md](QUICK_START.md)** - TL;DR version - get started in 1 minute
+- **[GETTING_STARTED.md](GETTING_STARTED.md)** - Complete step-by-step deployment guide
+- **[UPDATE_GUIDE.md](UPDATE_GUIDE.md)** - How to update your VPS deployment
+
+**Scraping Methods:**
+- **[TWITTERAPIIO_SETUP.md](TWITTERAPIIO_SETUP.md)** - Fast paid API setup (no Twitter account needed)
+- **[HOW_TO_GET_COOKIES.md](HOW_TO_GET_COOKIES.md)** - Free browser scraping setup
+- **[SCRAPING_METHODS_EXPLAINED.md](SCRAPING_METHODS_EXPLAINED.md)** - Detailed comparison of all methods
+
+**Features:**
+- **[COMMUNITY_SCRAPING.md](COMMUNITY_SCRAPING.md)** - How to scrape Twitter Communities
+- **[API_DOCUMENTATION.md](API_DOCUMENTATION.md)** - Full API reference (if available)
+
+**Troubleshooting:**
+- **[NITTER_STATUS.md](NITTER_STATUS.md)** - Why Nitter instances are blocked
+- **[FIXES_APPLIED.md](FIXES_APPLIED.md)** - Recent fixes and improvements
+
 ## Architecture
 
 ```
