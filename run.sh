@@ -29,6 +29,15 @@ echo "Waiting for services to start..."
 sleep 10
 
 # Run database migrations
+echo "Setting up database..."
+
+# Check if migrations exist, if not create initial migration
+MIGRATION_COUNT=$(docker-compose exec -T api ls -1 /app/alembic/versions/*.py 2>/dev/null | wc -l)
+if [ "$MIGRATION_COUNT" -eq "0" ]; then
+    echo "Generating initial database migration..."
+    docker-compose exec -T api alembic revision --autogenerate -m "Initial database schema"
+fi
+
 echo "Running database migrations..."
 docker-compose exec -T api alembic upgrade head
 
