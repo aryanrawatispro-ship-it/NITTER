@@ -331,20 +331,48 @@ def view_dashboard():
     print(f"\n{Colors.YELLOW}Dashboard URL: http://localhost:8000/dashboard{Colors.END}")
     print(f"{Colors.YELLOW}API Docs: http://localhost:8000/docs{Colors.END}\n")
 
+def scrape_user_now():
+    """Manually scrape a user's profile and tweets (one-time)."""
+    print_header("Scrape User Now")
+
+    username = input(f"{Colors.CYAN}Enter username (without @): {Colors.END}").strip()
+    if not username:
+        print_error("Username cannot be empty!")
+        return
+
+    print_info(f"Scraping @{username}'s profile and tweets...")
+
+    try:
+        response = requests.post(
+            f"{API_BASE}/api/users/{username}/scrape",
+            timeout=30
+        )
+
+        if response.status_code in [200, 201]:
+            print_success(f"Started scraping @{username}")
+            print_info("This will scrape profile + last 100 tweets")
+            print_info("Check 'View scraping jobs' to see progress")
+        else:
+            print_error(f"Failed to scrape: {response.text}")
+    except Exception as e:
+        print_error(f"Error: {e}")
+
+
 def main_menu():
     """Display main menu."""
     print_header("Nitter Twitter Scraper - Interactive CLI")
 
-    print(f"{Colors.BOLD}1.{Colors.END} Track a Twitter user")
-    print(f"{Colors.BOLD}2.{Colors.END} View tracked users")
-    print(f"{Colors.BOLD}3.{Colors.END} View scraped tweets")
-    print(f"{Colors.BOLD}4.{Colors.END} Search for tweets")
-    print(f"{Colors.BOLD}5.{Colors.END} View scraping jobs")
-    print(f"{Colors.BOLD}6.{Colors.END} Export data")
-    print(f"{Colors.BOLD}7.{Colors.END} View dashboard URLs")
-    print(f"{Colors.BOLD}8.{Colors.END} Exit")
+    print(f"{Colors.BOLD}1.{Colors.END} Track a Twitter user (periodic scraping)")
+    print(f"{Colors.BOLD}2.{Colors.END} Scrape user now (one-time)")
+    print(f"{Colors.BOLD}3.{Colors.END} View tracked users")
+    print(f"{Colors.BOLD}4.{Colors.END} View scraped tweets")
+    print(f"{Colors.BOLD}5.{Colors.END} Search for tweets")
+    print(f"{Colors.BOLD}6.{Colors.END} View scraping jobs")
+    print(f"{Colors.BOLD}7.{Colors.END} Export data")
+    print(f"{Colors.BOLD}8.{Colors.END} View dashboard URLs")
+    print(f"{Colors.BOLD}9.{Colors.END} Exit")
 
-    choice = input(f"\n{Colors.CYAN}Select option [1-8]: {Colors.END}").strip()
+    choice = input(f"\n{Colors.CYAN}Select option [1-9]: {Colors.END}").strip()
 
     return choice
 
@@ -365,18 +393,20 @@ def main():
             if choice == "1":
                 track_user()
             elif choice == "2":
-                view_tracked_users()
+                scrape_user_now()
             elif choice == "3":
-                view_tweets()
+                view_tracked_users()
             elif choice == "4":
-                search_tweets()
+                view_tweets()
             elif choice == "5":
-                view_jobs()
+                search_tweets()
             elif choice == "6":
-                export_data()
+                view_jobs()
             elif choice == "7":
-                view_dashboard()
+                export_data()
             elif choice == "8":
+                view_dashboard()
+            elif choice == "9":
                 print_info("Goodbye!")
                 break
             else:
