@@ -11,18 +11,35 @@ if [ ! -f .env ]; then
     echo "Please edit .env file with your configuration"
 fi
 
+# Detect which Docker Compose version to use
+if docker compose version > /dev/null 2>&1; then
+    # Docker Compose v2 (recommended)
+    COMPOSE_CMD="docker compose"
+    echo "Using Docker Compose v2"
+elif command -v docker-compose > /dev/null 2>&1; then
+    # Docker Compose v1 (legacy)
+    COMPOSE_CMD="docker-compose"
+    echo "Using Docker Compose v1 (legacy)"
+    echo "WARNING: Consider upgrading to Docker Compose v2 for better compatibility"
+    echo "See: https://docs.docker.com/compose/install/"
+else
+    echo "ERROR: Docker Compose is not installed!"
+    echo "Please install Docker Compose: https://docs.docker.com/compose/install/"
+    exit 1
+fi
+
 # Check if Docker is running
 if ! docker info > /dev/null 2>&1; then
-    echo "Docker is not running. Please start Docker first."
+    echo "ERROR: Docker is not running. Please start Docker first."
     exit 1
 fi
 
 # Build and start services
 echo "Building Docker images..."
-docker-compose build
+$COMPOSE_CMD build
 
 echo "Starting services..."
-docker-compose up -d
+$COMPOSE_CMD up -d
 
 echo ""
 echo "Waiting for services to start..."
@@ -32,14 +49,14 @@ sleep 10
 echo "Setting up database..."
 
 # Check if migrations exist, if not create initial migration
-MIGRATION_COUNT=$(docker-compose exec -T api ls -1 /app/alembic/versions/*.py 2>/dev/null | wc -l)
+MIGRATION_COUNT=$($COMPOSE_CMD exec -T api ls -1 /app/alembic/versions/*.py 2>/dev/null | wc -l)
 if [ "$MIGRATION_COUNT" -eq "0" ]; then
     echo "Generating initial database migration..."
-    docker-compose exec -T api alembic revision --autogenerate -m "Initial database schema"
+    $COMPOSE_CMD exec -T api alembic revision --autogenerate -m "Initial database schema"
 fi
 
 echo "Running database migrations..."
-docker-compose exec -T api alembic upgrade head
+$COMPOSE_CMD exec -T api alembic upgrade head
 
 echo ""
 echo "================================================"
@@ -52,8 +69,8 @@ echo "  - API Docs:   http://localhost/docs"
 echo "  - API:        http://localhost/api"
 echo ""
 echo "To view logs:"
-echo "  docker-compose logs -f"
+echo "  $COMPOSE_CMD logs -f"
 echo ""
 echo "To stop:"
-echo "  docker-compose down"
+echo "  $COMPOSE_CMD down"
 echo ""
