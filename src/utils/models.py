@@ -64,6 +64,7 @@ class Tweet(Base):
 
     text = Column(Text, nullable=False)
     html_text = Column(Text)
+    tweet_url = Column(String(512))  # Direct link to tweet
 
     likes_count = Column(Integer, default=0)
     retweets_count = Column(Integer, default=0)

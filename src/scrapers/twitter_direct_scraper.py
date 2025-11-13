@@ -393,11 +393,15 @@ class TwitterDirectScraper(BaseScraper):
             # Check if it's a retweet
             is_retweet = 'retweeted' in text.lower() or await article.query_selector('[data-testid="socialContext"]') is not None
 
+            # Construct tweet URL
+            tweet_url = f"https://twitter.com/{username}/status/{tweet_id}"
+
             return {
                 'tweet_id': tweet_id,
                 'username': username,
                 'text': text,
                 'html_text': text,  # Twitter.com doesn't easily give HTML
+                'tweet_url': tweet_url,  # Direct link to tweet
                 'posted_at': posted_at or datetime.utcnow(),
                 'likes_count': likes_count,
                 'retweets_count': retweets_count,
@@ -417,18 +421,23 @@ class TwitterDirectScraper(BaseScraper):
             logger.debug(f"Error extracting tweet data: {e}")
             return None
 
-    async def scrape_community_tweets(self, community_id: str, max_tweets: int = 100) -> List[Dict]:
+    async def scrape_community_tweets(self, community_id: str, max_tweets: int = None) -> List[Dict]:
         """
         Scrape tweets from a Twitter community.
 
         Args:
             community_id: Twitter community ID
-            max_tweets: Maximum number of tweets to scrape
+            max_tweets: Maximum number of tweets to scrape (None = ALL tweets)
 
         Returns:
             List of tweet dictionaries from the community
         """
-        logger.info(f"Scraping Twitter community: {community_id} (max {max_tweets} tweets)")
+        if max_tweets is None:
+            logger.info(f"Scraping ALL tweets from Twitter community: {community_id}")
+            max_scrolls = 200  # Much higher limit for scraping all tweets
+        else:
+            logger.info(f"Scraping Twitter community: {community_id} (max {max_tweets} tweets)")
+            max_scrolls = 50  # Reasonable limit
 
         # Login if needed (communities require authentication)
         if not self.is_logged_in:
@@ -453,15 +462,21 @@ class TwitterDirectScraper(BaseScraper):
             await self.page.wait_for_selector('article[data-testid="tweet"]', timeout=10000)
 
             scroll_attempts = 0
-            max_scrolls = 20  # Limit scrolling to prevent infinite loops
             seen_tweet_ids = set()
+            no_new_tweets_count = 0
 
-            while len(tweets) < max_tweets and scroll_attempts < max_scrolls:
+            while scroll_attempts < max_scrolls:
+                # Check if we've reached max_tweets limit
+                if max_tweets and len(tweets) >= max_tweets:
+                    break
+
+                previous_count = len(tweets)
                 # Get all tweet articles
                 articles = await self.page.query_selector_all('article[data-testid="tweet"]')
 
                 for article in articles:
-                    if len(tweets) >= max_tweets:
+                    # Check if we've reached max_tweets limit
+                    if max_tweets and len(tweets) >= max_tweets:
                         break
 
                     tweet_data = await self._extract_tweet_data(article)
@@ -471,13 +486,24 @@ class TwitterDirectScraper(BaseScraper):
                         tweets.append(tweet_data)
                         seen_tweet_ids.add(tweet_data['tweet_id'])
 
-                # Scroll down to load more
-                if len(tweets) < max_tweets:
-                    await self.page.evaluate('window.scrollBy(0, 1000)')
-                    await asyncio.sleep(2)
-                    scroll_attempts += 1
+                # Check if we got new tweets
+                if len(tweets) == previous_count:
+                    no_new_tweets_count += 1
+                    # If no new tweets after 3 scrolls, we've reached the end
+                    if no_new_tweets_count >= 3:
+                        logger.info("No new tweets found after 3 scroll attempts, stopping")
+                        break
                 else:
-                    break
+                    no_new_tweets_count = 0  # Reset counter
+
+                # Log progress
+                if scroll_attempts % 10 == 0:
+                    logger.info(f"Progress: {len(tweets)} tweets scraped, scroll {scroll_attempts}/{max_scrolls}")
+
+                # Scroll down to load more
+                await self.page.evaluate('window.scrollBy(0, 1500)')
+                await asyncio.sleep(2)
+                scroll_attempts += 1
 
             logger.info(f"Successfully scraped {len(tweets)} tweets from community {community_id}")
             return tweets
