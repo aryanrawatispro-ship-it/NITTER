@@ -42,8 +42,8 @@ RUN playwright install chromium
 # Copy application code
 COPY . .
 
-# Create logs directory
-RUN mkdir -p /app/logs
+# Create logs and alembic versions directories
+RUN mkdir -p /app/logs /app/alembic/versions
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
