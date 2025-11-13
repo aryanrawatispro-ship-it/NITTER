@@ -11,7 +11,7 @@ import uuid
 
 from .celery_app import celery_app
 from src.nitter_manager import NitterInstanceManager
-from src.scrapers import ProfileScraper, TimelineScraper, SearchScraper, ThreadScraper, TwitterDirectScraper
+from src.scrapers import ProfileScraper, TimelineScraper, SearchScraper, ThreadScraper, TwitterDirectScraper, TwitterAPIioScraper
 from src.data_processing import (
     TextCleaner, DataExtractor, SentimentAnalyzer, EngagementCalculator
 )
@@ -74,8 +74,19 @@ async def scrape_user_profile(self, username: str) -> Dict:
 
         profile_data = None
 
-        # Try Twitter Direct if enabled
-        if settings.use_twitter_direct and (_twitter_cookies or (settings.twitter_username and settings.twitter_password)):
+        # Priority 1: Try TwitterAPI.io if enabled (fastest and most reliable)
+        if settings.use_twitterapiio and settings.twitterapiio_api_key:
+            logger.info(f"Using TwitterAPI.io for {username}")
+            try:
+                scraper = TwitterAPIioScraper(settings.twitterapiio_api_key)
+                profile_data = await scraper.scrape_profile(username)
+                if profile_data:
+                    logger.info(f"Successfully scraped {username} via TwitterAPI.io")
+            except Exception as e:
+                logger.warning(f"TwitterAPI.io failed for {username}: {e}")
+
+        # Priority 2: Try Twitter Direct if enabled
+        if not profile_data and settings.use_twitter_direct and (_twitter_cookies or (settings.twitter_username and settings.twitter_password)):
             logger.info(f"Using Twitter Direct scraper for {username}")
             async with TwitterDirectScraper(
                 instance_manager,
@@ -85,22 +96,33 @@ async def scrape_user_profile(self, username: str) -> Dict:
             ) as scraper:
                 profile_data = await scraper.scrape_profile(username)
 
-        # Fallback to Nitter if Twitter Direct disabled or failed
+        # Priority 3: Fallback to Nitter
         if not profile_data:
             logger.info(f"Using Nitter scraper for {username}")
             async with ProfileScraper(instance_manager) as scraper:
                 profile_data = await scraper.scrape_profile(username)
 
-            # If Nitter failed and we have Twitter credentials/cookies, try Twitter Direct as fallback
-            if not profile_data and (_twitter_cookies or (settings.twitter_username and settings.twitter_password)):
-                logger.warning(f"Nitter failed for {username}, falling back to Twitter Direct")
-                async with TwitterDirectScraper(
-                    instance_manager,
-                    settings.twitter_username,
-                    settings.twitter_password,
-                    _twitter_cookies
-                ) as scraper:
-                    profile_data = await scraper.scrape_profile(username)
+            # If Nitter failed, try remaining methods as fallbacks
+            if not profile_data:
+                # Try Twitter Direct if not already tried
+                if not settings.use_twitter_direct and (_twitter_cookies or (settings.twitter_username and settings.twitter_password)):
+                    logger.warning(f"Nitter failed for {username}, falling back to Twitter Direct")
+                    async with TwitterDirectScraper(
+                        instance_manager,
+                        settings.twitter_username,
+                        settings.twitter_password,
+                        _twitter_cookies
+                    ) as scraper:
+                        profile_data = await scraper.scrape_profile(username)
+
+                # Try TwitterAPI.io if not already tried
+                if not profile_data and not settings.use_twitterapiio and settings.twitterapiio_api_key:
+                    logger.warning(f"Falling back to TwitterAPI.io for {username}")
+                    try:
+                        scraper = TwitterAPIioScraper(settings.twitterapiio_api_key)
+                        profile_data = await scraper.scrape_profile(username)
+                    except Exception as e:
+                        logger.error(f"TwitterAPI.io fallback failed: {e}")
 
         if not profile_data:
             raise Exception(f"Failed to scrape profile: {username}")
@@ -180,8 +202,19 @@ async def scrape_user_timeline(self, username: str, max_tweets: int = 100) -> Li
 
         tweets = []
 
-        # Try Twitter Direct if enabled
-        if settings.use_twitter_direct and (_twitter_cookies or (settings.twitter_username and settings.twitter_password)):
+        # Priority 1: Try TwitterAPI.io if enabled (fastest and most reliable)
+        if settings.use_twitterapiio and settings.twitterapiio_api_key:
+            logger.info(f"Using TwitterAPI.io for {username} timeline")
+            try:
+                scraper = TwitterAPIioScraper(settings.twitterapiio_api_key)
+                tweets = await scraper.scrape_timeline(username, max_tweets)
+                if tweets:
+                    logger.info(f"Successfully scraped {len(tweets)} tweets via TwitterAPI.io")
+            except Exception as e:
+                logger.warning(f"TwitterAPI.io failed for {username} timeline: {e}")
+
+        # Priority 2: Try Twitter Direct if enabled
+        if not tweets and settings.use_twitter_direct and (_twitter_cookies or (settings.twitter_username and settings.twitter_password)):
             logger.info(f"Using Twitter Direct scraper for {username} timeline")
             async with TwitterDirectScraper(
                 instance_manager,
@@ -191,22 +224,33 @@ async def scrape_user_timeline(self, username: str, max_tweets: int = 100) -> Li
             ) as scraper:
                 tweets = await scraper.scrape_timeline(username, max_tweets)
 
-        # Fallback to Nitter if Twitter Direct disabled or failed
+        # Priority 3: Fallback to Nitter
         if not tweets:
             logger.info(f"Using Nitter scraper for {username} timeline")
             async with TimelineScraper(instance_manager) as scraper:
                 tweets = await scraper.scrape_timeline(username, max_tweets)
 
-            # If Nitter failed and we have Twitter credentials/cookies, try Twitter Direct as fallback
-            if not tweets and (_twitter_cookies or (settings.twitter_username and settings.twitter_password)):
-                logger.warning(f"Nitter failed for {username} timeline, falling back to Twitter Direct")
-                async with TwitterDirectScraper(
-                    instance_manager,
-                    settings.twitter_username,
-                    settings.twitter_password,
-                    _twitter_cookies
-                ) as scraper:
-                    tweets = await scraper.scrape_timeline(username, max_tweets)
+            # If Nitter failed, try remaining methods as fallbacks
+            if not tweets:
+                # Try Twitter Direct if not already tried
+                if not settings.use_twitter_direct and (_twitter_cookies or (settings.twitter_username and settings.twitter_password)):
+                    logger.warning(f"Nitter failed for {username} timeline, falling back to Twitter Direct")
+                    async with TwitterDirectScraper(
+                        instance_manager,
+                        settings.twitter_username,
+                        settings.twitter_password,
+                        _twitter_cookies
+                    ) as scraper:
+                        tweets = await scraper.scrape_timeline(username, max_tweets)
+
+                # Try TwitterAPI.io if not already tried
+                if not tweets and not settings.use_twitterapiio and settings.twitterapiio_api_key:
+                    logger.warning(f"Falling back to TwitterAPI.io for {username} timeline")
+                    try:
+                        scraper = TwitterAPIioScraper(settings.twitterapiio_api_key)
+                        tweets = await scraper.scrape_timeline(username, max_tweets)
+                    except Exception as e:
+                        logger.error(f"TwitterAPI.io fallback failed: {e}")
 
         # Process and save tweets
         saved_count = 0
@@ -301,9 +345,33 @@ async def scrape_search_results(self, query: str, search_type: str = 'keyword', 
         if not instance_manager._health_check_task:
             await instance_manager.start()
 
-        # Scrape search results
-        async with SearchScraper(instance_manager) as scraper:
-            tweets = await scraper.scrape_search(query, max_tweets, search_type)
+        tweets = []
+
+        # Priority 1: Try TwitterAPI.io if enabled (fastest and most reliable)
+        if settings.use_twitterapiio and settings.twitterapiio_api_key:
+            logger.info(f"Using TwitterAPI.io for search: {query}")
+            try:
+                scraper = TwitterAPIioScraper(settings.twitterapiio_api_key)
+                tweets = await scraper.search_tweets(query, max_tweets)
+                if tweets:
+                    logger.info(f"Successfully found {len(tweets)} tweets via TwitterAPI.io")
+            except Exception as e:
+                logger.warning(f"TwitterAPI.io search failed for '{query}': {e}")
+
+        # Priority 2: Fallback to Nitter
+        if not tweets:
+            logger.info(f"Using Nitter scraper for search: {query}")
+            async with SearchScraper(instance_manager) as scraper:
+                tweets = await scraper.scrape_search(query, max_tweets, search_type)
+
+            # If Nitter failed and TwitterAPI.io is available, try it as fallback
+            if not tweets and not settings.use_twitterapiio and settings.twitterapiio_api_key:
+                logger.warning(f"Nitter search failed for '{query}', falling back to TwitterAPI.io")
+                try:
+                    scraper = TwitterAPIioScraper(settings.twitterapiio_api_key)
+                    tweets = await scraper.search_tweets(query, max_tweets)
+                except Exception as e:
+                    logger.error(f"TwitterAPI.io fallback failed: {e}")
 
         # Save tweets
         saved_count = 0

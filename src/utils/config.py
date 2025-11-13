@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     twitter_password: str = Field(default="", alias="TWITTER_PASSWORD")
     twitter_cookies_file: str = Field(default="", alias="TWITTER_COOKIES_FILE")
 
+    # TwitterAPI.io (unofficial API service)
+    use_twitterapiio: bool = Field(default=False, alias="USE_TWITTERAPIIO")
+    twitterapiio_api_key: str = Field(default="", alias="TWITTERAPIIO_API_KEY")
+
     # Proxy
     use_proxy: bool = Field(default=False, alias="USE_PROXY")
     proxy_url: str = Field(default="", alias="PROXY_URL")

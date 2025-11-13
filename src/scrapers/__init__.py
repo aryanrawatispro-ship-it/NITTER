@@ -4,6 +4,7 @@ from .timeline_scraper import TimelineScraper
 from .search_scraper import SearchScraper
 from .thread_scraper import ThreadScraper
 from .twitter_direct_scraper import TwitterDirectScraper
+from .twitterapiio_scraper import TwitterAPIioScraper
 
 __all__ = [
     'BaseScraper',
@@ -11,5 +12,6 @@ __all__ = [
     'TimelineScraper',
     'SearchScraper',
     'ThreadScraper',
-    'TwitterDirectScraper'
+    'TwitterDirectScraper',
+    'TwitterAPIioScraper'
 ]

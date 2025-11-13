@@ -1,10 +1,13 @@
-# Nitter Twitter Scraping System
+# Twitter Scraping System
 
-A comprehensive Twitter data scraping system using Nitter instances, designed to collect and analyze Twitter data without requiring Twitter API access.
+A comprehensive Twitter data scraping system with **multiple scraping methods**, designed to collect and analyze Twitter data reliably and affordably.
 
 ## Features
 
+- **Multiple Scraping Methods**: 3-tier fallback strategy (TwitterAPI.io → Twitter Direct → Nitter)
 - **Nitter Instance Manager**: Automatic health checking and rotation across 15+ Nitter instances
+- **Twitter Direct Scraping**: Browser-based scraping with cookie authentication (no API needed!)
+- **TwitterAPI.io Integration**: Fast, reliable paid API ($0.15 per 1K tweets vs $100+/month official)
 - **Multi-Purpose Scrapers**: Profile, timeline, search, thread, and follower list scraping
 - **Data Processing**: Text cleaning, hashtag/mention extraction, sentiment analysis, engagement metrics
 - **Task Scheduling**: Celery-based background job system with configurable intervals
@@ -14,6 +17,46 @@ A comprehensive Twitter data scraping system using Nitter instances, designed to
 - **Real-Time Dashboard**: Visualize metrics and scraped data
 - **Anti-Detection**: Random user agents, delays, and proxy support
 - **Scalable Architecture**: Docker-based deployment with Redis caching
+
+## Scraping Methods
+
+This system supports **3 different scraping methods** with automatic fallback:
+
+### 1. TwitterAPI.io (Recommended for Production)
+- ⚡ **Fastest**: API calls return instantly
+- ✅ **Most Reliable**: Professional infrastructure
+- 💰 **Affordable**: $0.15 per 1K tweets (free tier: 500 requests/month)
+- 📚 **Setup**: See [TWITTERAPIIO_SETUP.md](TWITTERAPIIO_SETUP.md)
+
+### 2. Twitter Direct (Best for Free Usage)
+- 🆓 **Free**: No costs, unlimited usage
+- 🔒 **Cookie-based**: More secure than password login
+- ✅ **Works when Nitter blocked**: Scrapes twitter.com directly
+- 📚 **Setup**: See [HOW_TO_GET_COOKIES.md](HOW_TO_GET_COOKIES.md)
+
+### 3. Nitter Instances (Fallback)
+- 🆓 **Free**: No costs
+- ⚠️ **Currently Blocked**: Twitter blocked most Nitter instances in 2024
+- 🔄 **Auto-rotation**: Tries multiple instances automatically
+- 📚 **Status**: See [NITTER_STATUS.md](NITTER_STATUS.md)
+
+### Priority & Fallback
+
+The system automatically tries methods in order:
+1. **TwitterAPI.io** (if enabled) - fastest
+2. **Twitter Direct** (if cookies/credentials set) - free
+3. **Nitter** (always tries last) - last resort
+
+If one method fails, it automatically falls back to the next. This ensures **maximum reliability** - you always get data!
+
+### Comparison
+
+| Method | Cost | Speed | Reliability | Setup |
+|--------|------|-------|-------------|-------|
+| **TwitterAPI.io** | $0.15/1K | ⚡ Instant | ✅✅✅ Excellent | Easy |
+| **Twitter Direct** | Free | 🐌 Slow | ✅✅ Good | Medium |
+| **Nitter** | Free | ⚡ Fast | ❌ Blocked | Easy |
+| Official Twitter API | $100-5000/mo | ⚡ Instant | ✅✅✅ Excellent | Hard |
 
 ## Architecture
 
@@ -176,9 +219,20 @@ alembic upgrade head
 
 ## Documentation
 
+### Setup Guides
+- **[QUICK_START.md](QUICK_START.md)** - 5-minute quick start guide
+- **[TWITTERAPIIO_SETUP.md](TWITTERAPIIO_SETUP.md)** - TwitterAPI.io integration guide (recommended for production)
+- **[HOW_TO_GET_COOKIES.md](HOW_TO_GET_COOKIES.md)** - Cookie extraction guide for Twitter Direct scraping
+- **[TWITTER_DIRECT_SETUP.md](TWITTER_DIRECT_SETUP.md)** - Twitter Direct scraping setup
+
+### Deployment
 - **[VPS_DEPLOYMENT.md](VPS_DEPLOYMENT.md)** - Complete guide for deploying on a VPS (DigitalOcean, AWS, Hetzner, etc.)
 - **[DEPLOYMENT_UPDATE.md](DEPLOYMENT_UPDATE.md)** - Quick update guide for applying latest fixes
+
+### Reference
 - **[FIXES_APPLIED.md](FIXES_APPLIED.md)** - Detailed changelog of recent fixes and improvements
+- **[NITTER_STATUS.md](NITTER_STATUS.md)** - Why Nitter is blocked + all solutions
+- **[TROUBLESHOOT.md](TROUBLESHOOT.md)** - Complete troubleshooting guide
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - Guidelines for contributing to the project
 
 ### Troubleshooting
