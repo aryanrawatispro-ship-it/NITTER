@@ -1,9 +1,10 @@
 """
 Direct Twitter.com scraper - bypasses Nitter by scraping Twitter directly.
-Requires a Twitter account for login.
+Supports both login (username/password) and cookie-based authentication.
 """
 
 import asyncio
+import json
 from typing import Optional, Dict, List
 from loguru import logger
 from datetime import datetime
@@ -15,37 +16,85 @@ from .base_scraper import BaseScraper
 class TwitterDirectScraper(BaseScraper):
     """Scraper that works directly on twitter.com instead of Nitter."""
 
-    def __init__(self, instance_manager, twitter_username: str = None, twitter_password: str = None):
+    def __init__(self, instance_manager, twitter_username: str = None, twitter_password: str = None, cookies: List[Dict] = None):
         """
         Initialize direct Twitter scraper.
 
         Args:
             instance_manager: NitterInstanceManager (kept for compatibility)
-            twitter_username: Twitter account username for login
-            twitter_password: Twitter account password for login
+            twitter_username: Twitter account username for login (optional if using cookies)
+            twitter_password: Twitter account password for login (optional if using cookies)
+            cookies: List of cookie dictionaries for authentication (preferred method)
         """
         super().__init__(instance_manager)
         self.twitter_username = twitter_username
         self.twitter_password = twitter_password
+        self.cookies = cookies
         self.is_logged_in = False
         self.base_url = "https://twitter.com"
 
+    async def load_cookies(self) -> bool:
+        """
+        Load cookies into the browser context.
+
+        Returns:
+            True if cookies loaded successfully, False otherwise
+        """
+        if not self.cookies:
+            logger.debug("No cookies provided")
+            return False
+
+        try:
+            logger.info("Loading Twitter cookies...")
+
+            # Add cookies to the browser context
+            context = self.page.context
+            await context.add_cookies(self.cookies)
+
+            # Navigate to Twitter to verify cookies work
+            await self.page.goto(self.base_url, wait_until='networkidle')
+            await asyncio.sleep(2)
+
+            # Check if we're logged in by looking for user menu or timeline
+            current_url = self.page.url
+            is_logged_in = 'home' in current_url or await self.page.query_selector('[data-testid="SideNav_AccountSwitcher_Button"]') is not None
+
+            if is_logged_in:
+                self.is_logged_in = True
+                logger.info("Successfully authenticated with cookies")
+                return True
+            else:
+                logger.warning("Cookies loaded but not authenticated")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error loading cookies: {e}")
+            return False
+
     async def login(self) -> bool:
         """
-        Login to Twitter.com.
+        Login to Twitter.com using cookies (preferred) or username/password.
 
         Returns:
             True if login successful, False otherwise
         """
+        # Try cookies first (preferred method)
+        if self.cookies:
+            success = await self.load_cookies()
+            if success:
+                return True
+            logger.warning("Cookie authentication failed, falling back to username/password")
+
+        # Fallback to username/password login
         if not self.twitter_username or not self.twitter_password:
-            logger.warning("No Twitter credentials provided, skipping login")
+            logger.warning("No Twitter credentials or cookies provided, skipping login")
             return False
 
         if self.is_logged_in:
             return True
 
         try:
-            logger.info("Logging in to Twitter...")
+            logger.info("Logging in to Twitter with username/password...")
 
             # Go to login page
             await self.page.goto(f"{self.base_url}/login", wait_until='networkidle')

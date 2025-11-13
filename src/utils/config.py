@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     use_twitter_direct: bool = Field(default=False, alias="USE_TWITTER_DIRECT")
     twitter_username: str = Field(default="", alias="TWITTER_USERNAME")
     twitter_password: str = Field(default="", alias="TWITTER_PASSWORD")
+    twitter_cookies_file: str = Field(default="", alias="TWITTER_COOKIES_FILE")
 
     # Proxy
     use_proxy: bool = Field(default=False, alias="USE_PROXY")

@@ -18,6 +18,7 @@ from src.data_processing import (
 from src.utils.database import get_db_context
 from src.utils.models import TwitterUser, Tweet, SearchQuery, ScrapingJob
 from src.utils.config import settings
+from src.utils.twitter_auth import load_cookies_from_file
 
 
 # Initialize Nitter instance manager
@@ -25,6 +26,11 @@ instance_manager = NitterInstanceManager(
     health_check_interval=settings.health_check_interval,
     request_timeout=settings.request_timeout
 )
+
+# Load Twitter cookies if available
+_twitter_cookies = None
+if settings.twitter_cookies_file:
+    _twitter_cookies = load_cookies_from_file(settings.twitter_cookies_file)
 
 
 class AsyncTask(Task):
@@ -69,12 +75,13 @@ async def scrape_user_profile(self, username: str) -> Dict:
         profile_data = None
 
         # Try Twitter Direct if enabled
-        if settings.use_twitter_direct and settings.twitter_username and settings.twitter_password:
+        if settings.use_twitter_direct and (_twitter_cookies or (settings.twitter_username and settings.twitter_password)):
             logger.info(f"Using Twitter Direct scraper for {username}")
             async with TwitterDirectScraper(
                 instance_manager,
                 settings.twitter_username,
-                settings.twitter_password
+                settings.twitter_password,
+                _twitter_cookies
             ) as scraper:
                 profile_data = await scraper.scrape_profile(username)
 
@@ -84,13 +91,14 @@ async def scrape_user_profile(self, username: str) -> Dict:
             async with ProfileScraper(instance_manager) as scraper:
                 profile_data = await scraper.scrape_profile(username)
 
-            # If Nitter failed and we have Twitter credentials, try Twitter Direct as fallback
-            if not profile_data and settings.twitter_username and settings.twitter_password:
+            # If Nitter failed and we have Twitter credentials/cookies, try Twitter Direct as fallback
+            if not profile_data and (_twitter_cookies or (settings.twitter_username and settings.twitter_password)):
                 logger.warning(f"Nitter failed for {username}, falling back to Twitter Direct")
                 async with TwitterDirectScraper(
                     instance_manager,
                     settings.twitter_username,
-                    settings.twitter_password
+                    settings.twitter_password,
+                    _twitter_cookies
                 ) as scraper:
                     profile_data = await scraper.scrape_profile(username)
 
@@ -173,12 +181,13 @@ async def scrape_user_timeline(self, username: str, max_tweets: int = 100) -> Li
         tweets = []
 
         # Try Twitter Direct if enabled
-        if settings.use_twitter_direct and settings.twitter_username and settings.twitter_password:
+        if settings.use_twitter_direct and (_twitter_cookies or (settings.twitter_username and settings.twitter_password)):
             logger.info(f"Using Twitter Direct scraper for {username} timeline")
             async with TwitterDirectScraper(
                 instance_manager,
                 settings.twitter_username,
-                settings.twitter_password
+                settings.twitter_password,
+                _twitter_cookies
             ) as scraper:
                 tweets = await scraper.scrape_timeline(username, max_tweets)
 
@@ -188,13 +197,14 @@ async def scrape_user_timeline(self, username: str, max_tweets: int = 100) -> Li
             async with TimelineScraper(instance_manager) as scraper:
                 tweets = await scraper.scrape_timeline(username, max_tweets)
 
-            # If Nitter failed and we have Twitter credentials, try Twitter Direct as fallback
-            if not tweets and settings.twitter_username and settings.twitter_password:
+            # If Nitter failed and we have Twitter credentials/cookies, try Twitter Direct as fallback
+            if not tweets and (_twitter_cookies or (settings.twitter_username and settings.twitter_password)):
                 logger.warning(f"Nitter failed for {username} timeline, falling back to Twitter Direct")
                 async with TwitterDirectScraper(
                     instance_manager,
                     settings.twitter_username,
-                    settings.twitter_password
+                    settings.twitter_password,
+                    _twitter_cookies
                 ) as scraper:
                     tweets = await scraper.scrape_timeline(username, max_tweets)
 
