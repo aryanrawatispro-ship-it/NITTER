@@ -3,11 +3,13 @@ from .profile_scraper import ProfileScraper
 from .timeline_scraper import TimelineScraper
 from .search_scraper import SearchScraper
 from .thread_scraper import ThreadScraper
+from .twitter_direct_scraper import TwitterDirectScraper
 
 __all__ = [
     'BaseScraper',
     'ProfileScraper',
     'TimelineScraper',
     'SearchScraper',
-    'ThreadScraper'
+    'ThreadScraper',
+    'TwitterDirectScraper'
 ]

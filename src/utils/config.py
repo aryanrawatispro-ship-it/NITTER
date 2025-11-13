@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     health_check_interval: int = Field(default=300, alias="HEALTH_CHECK_INTERVAL")
     request_timeout: int = Field(default=30, alias="REQUEST_TIMEOUT")
 
+    # Twitter Direct Scraping
+    use_twitter_direct: bool = Field(default=False, alias="USE_TWITTER_DIRECT")
+    twitter_username: str = Field(default="", alias="TWITTER_USERNAME")
+    twitter_password: str = Field(default="", alias="TWITTER_PASSWORD")
+
     # Proxy
     use_proxy: bool = Field(default=False, alias="USE_PROXY")
     proxy_url: str = Field(default="", alias="PROXY_URL")
