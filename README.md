@@ -90,11 +90,34 @@ celery -A src.scheduler.celery_app beat --loglevel=info
 
 #### Production Mode (Docker)
 
+**Easiest way - Use the startup script:**
+```bash
+chmod +x run.sh
+./run.sh
+```
+
+**Or manually:**
 ```bash
 docker-compose up -d
 ```
 
 ## Usage
+
+### Interactive CLI
+
+The easiest way to use the scraper is through the interactive CLI:
+
+```bash
+python3 cli.py
+```
+
+Features:
+- Track users with configurable intervals
+- One-time scraping on demand
+- View tracked users and scraped tweets
+- Search for tweets by keyword/hashtag
+- Export data to CSV/JSON
+- View scraping jobs and statistics
 
 ### API Examples
 
@@ -150,6 +173,23 @@ alembic revision --autogenerate -m "Description"
 # Apply migrations
 alembic upgrade head
 ```
+
+## Documentation
+
+- **[VPS_DEPLOYMENT.md](VPS_DEPLOYMENT.md)** - Complete guide for deploying on a VPS (DigitalOcean, AWS, Hetzner, etc.)
+- **[DEPLOYMENT_UPDATE.md](DEPLOYMENT_UPDATE.md)** - Quick update guide for applying latest fixes
+- **[FIXES_APPLIED.md](FIXES_APPLIED.md)** - Detailed changelog of recent fixes and improvements
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Guidelines for contributing to the project
+
+### Troubleshooting
+
+If you encounter database migration issues, see [FIXES_APPLIED.md](FIXES_APPLIED.md) for solutions.
+
+Common issues:
+- **Database tables don't exist**: Run `./run.sh` which auto-generates migrations
+- **Port conflicts**: Stop conflicting services or change ports in docker-compose.yml
+- **Out of memory**: Add swap space (see VPS_DEPLOYMENT.md)
+- **Nitter instances failing**: Health checker will automatically rotate to working instances
 
 ## License
 
