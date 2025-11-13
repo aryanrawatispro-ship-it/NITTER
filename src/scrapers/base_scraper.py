@@ -26,6 +26,7 @@ class BaseScraper:
         self.instance_manager = instance_manager
         self.browser: Optional[Browser] = None
         self.page: Optional[Page] = None
+        self.playwright = None
         self.ua = UserAgent()
         self.current_instance = None
 
@@ -40,10 +41,10 @@ class BaseScraper:
 
     async def start(self):
         """Start the browser and create a new page."""
-        playwright = await async_playwright().start()
+        self.playwright = await async_playwright().start()
 
         # Launch browser with anti-detection settings
-        self.browser = await playwright.chromium.launch(
+        self.browser = await self.playwright.chromium.launch(
             headless=True,
             args=[
                 '--disable-blink-features=AutomationControlled',
@@ -75,6 +76,8 @@ class BaseScraper:
             await self.page.close()
         if self.browser:
             await self.browser.close()
+        if self.playwright:
+            await self.playwright.stop()
         logger.info("Browser closed")
 
     async def random_delay(self):

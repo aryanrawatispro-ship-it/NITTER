@@ -71,6 +71,7 @@ class NitterInstanceManager:
         self.health_check_interval = health_check_interval
         self.request_timeout = request_timeout
         self.current_index = 0
+        self.current_instance = None  # Track the current instance URL
         self._health_check_task = None
         self._lock = asyncio.Lock()
 
@@ -175,6 +176,7 @@ class NitterInstanceManager:
             self.current_index = (self.current_index + 1) % len(healthy_instances)
 
             instance.last_used = datetime.now()
+            self.current_instance = instance.url  # Track the current instance URL
             return instance
 
     async def get_instance_with_fallback(self, max_retries: int = 3) -> Optional[NitterInstance]:
