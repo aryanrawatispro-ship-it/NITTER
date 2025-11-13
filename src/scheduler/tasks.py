@@ -16,7 +16,7 @@ from src.data_processing import (
     TextCleaner, DataExtractor, SentimentAnalyzer, EngagementCalculator
 )
 from src.utils.database import get_db_context
-from src.utils.models import TwitterUser, Tweet, SearchQuery, ScrapingJob
+from src.utils.models import TwitterUser, Tweet, SearchQuery, ScrapingJob, TwitterCommunity
 from src.utils.config import settings
 from src.utils.twitter_auth import load_cookies_from_file
 
@@ -511,6 +511,152 @@ async def scrape_thread(self, tweet_url: str) -> List[Dict]:
         raise
 
 
+@celery_app.task(bind=True, base=AsyncTask, max_retries=3)
+async def scrape_community_tweets(self, community_id: str, max_tweets: int = 100) -> List[Dict]:
+    """
+    Scrape tweets from a Twitter community.
+
+    Args:
+        community_id: Twitter community ID
+        max_tweets: Maximum tweets to scrape
+
+    Returns:
+        List of tweet dictionaries
+    """
+    job_id = str(uuid.uuid4())
+    logger.info(f"Starting community scrape job {job_id} for community {community_id}")
+
+    with get_db_context() as db:
+        job = ScrapingJob(
+            job_id=job_id,
+            job_type='community',
+            target=community_id,
+            status='running',
+            started_at=datetime.utcnow()
+        )
+        db.add(job)
+        db.commit()
+
+    try:
+        if not instance_manager._health_check_task:
+            await instance_manager.start()
+
+        tweets = []
+        community_data = None
+
+        # Priority 1: Try TwitterAPI.io if enabled (fastest and most reliable)
+        if settings.use_twitterapiio and settings.twitterapiio_api_key:
+            logger.info(f"Using TwitterAPI.io for community {community_id}")
+            try:
+                scraper = TwitterAPIioScraper(settings.twitterapiio_api_key)
+                tweets = await scraper.scrape_community_tweets(community_id, max_tweets)
+                if tweets:
+                    logger.info(f"Successfully scraped {len(tweets)} tweets via TwitterAPI.io")
+                    # Also get community details
+                    community_data = await scraper.get_community(community_id)
+            except Exception as e:
+                logger.warning(f"TwitterAPI.io failed for community {community_id}: {e}")
+
+        # Priority 2: Try Twitter Direct if enabled
+        if not tweets and settings.use_twitter_direct and (_twitter_cookies or (settings.twitter_username and settings.twitter_password)):
+            logger.info(f"Using Twitter Direct scraper for community {community_id}")
+            async with TwitterDirectScraper(
+                instance_manager,
+                settings.twitter_username,
+                settings.twitter_password,
+                _twitter_cookies
+            ) as scraper:
+                tweets = await scraper.scrape_community_tweets(community_id, max_tweets)
+                if not community_data:
+                    community_data = await scraper.get_community(community_id)
+
+        # If no tweets scraped and TwitterAPI.io not tried, try it as fallback
+        if not tweets and not settings.use_twitterapiio and settings.twitterapiio_api_key:
+            logger.warning(f"Falling back to TwitterAPI.io for community {community_id}")
+            try:
+                scraper = TwitterAPIioScraper(settings.twitterapiio_api_key)
+                tweets = await scraper.scrape_community_tweets(community_id, max_tweets)
+                if not community_data:
+                    community_data = await scraper.get_community(community_id)
+            except Exception as e:
+                logger.error(f"TwitterAPI.io fallback failed: {e}")
+
+        # Save community details if we got them
+        if community_data:
+            with get_db_context() as db:
+                community = db.query(TwitterCommunity).filter_by(community_id=community_id).first()
+
+                if community:
+                    # Update existing community
+                    for key, value in community_data.items():
+                        if hasattr(community, key) and key != 'community_id':
+                            setattr(community, key, value)
+                    community.updated_at = datetime.utcnow()
+                    community.last_scraped = datetime.utcnow()
+                else:
+                    # Create new community
+                    community = TwitterCommunity(**community_data)
+                    community.last_scraped = datetime.utcnow()
+                    db.add(community)
+
+                db.commit()
+
+        # Save tweets
+        saved_count = 0
+        with get_db_context() as db:
+            for tweet_data in tweets:
+                # Get or create user
+                user = db.query(TwitterUser).filter_by(username=tweet_data.get('username')).first()
+                if not user and tweet_data.get('username'):
+                    user = TwitterUser(username=tweet_data['username'])
+                    db.add(user)
+                    db.flush()
+
+                # Check if tweet exists
+                existing_tweet = db.query(Tweet).filter_by(tweet_id=tweet_data['tweet_id']).first()
+
+                if not existing_tweet:
+                    processed_data = await process_tweet_data(tweet_data, user.followers_count if user else 0)
+
+                    tweet = Tweet(
+                        user_id=user.id if user else None,
+                        nitter_instance=instance_manager.current_instance,
+                        **processed_data
+                    )
+                    db.add(tweet)
+                    saved_count += 1
+
+            # Update community last_scraped
+            community = db.query(TwitterCommunity).filter_by(community_id=community_id).first()
+            if community:
+                community.last_scraped = datetime.utcnow()
+
+            # Update job
+            job = db.query(ScrapingJob).filter_by(job_id=job_id).first()
+            job.status = 'completed'
+            job.completed_at = datetime.utcnow()
+            job.duration = (job.completed_at - job.started_at).total_seconds()
+            job.items_scraped = saved_count
+            job.nitter_instance = instance_manager.current_instance
+
+            db.commit()
+
+        logger.info(f"Successfully completed community scrape job {job_id}: {saved_count} new tweets")
+        return tweets
+
+    except Exception as e:
+        logger.error(f"Error in community scrape job {job_id}: {e}")
+
+        with get_db_context() as db:
+            job = db.query(ScrapingJob).filter_by(job_id=job_id).first()
+            job.status = 'failed'
+            job.error_message = str(e)
+            job.completed_at = datetime.utcnow()
+            db.commit()
+
+        raise self.retry(exc=e, countdown=60 * (self.request.retries + 1))
+
+
 # Periodic tasks
 
 @celery_app.task
@@ -557,6 +703,29 @@ def check_tracked_searches():
             if should_execute:
                 logger.info(f"Scheduling search for: {search.query}")
                 scrape_search_results.delay(search.query, search.query_type)
+
+
+@celery_app.task
+def check_tracked_communities():
+    """Check and scrape tracked communities based on their schedule."""
+    with get_db_context() as db:
+        now = datetime.utcnow()
+
+        communities = db.query(TwitterCommunity).filter(
+            TwitterCommunity.is_tracked == True
+        ).all()
+
+        for community in communities:
+            # Check if it's time to scrape
+            if community.last_scraped is None:
+                should_scrape = True
+            else:
+                next_scrape = community.last_scraped + timedelta(seconds=community.check_interval)
+                should_scrape = now >= next_scrape
+
+            if should_scrape:
+                logger.info(f"Scheduling scrape for tracked community: {community.name} ({community.community_id})")
+                scrape_community_tweets.delay(community.community_id)
 
 
 @celery_app.task

@@ -100,6 +100,9 @@ class Tweet(Base):
     sentiment = Column(String(20))  # positive, negative, neutral
     sentiment_score = Column(Float)
 
+    # Community (if tweet is from a community)
+    community_id = Column(String(255), nullable=True, index=True)
+
     # Scraping metadata
     scraped_at = Column(DateTime, default=datetime.utcnow)
     nitter_instance = Column(String(255))  # Which instance was used
@@ -206,3 +209,37 @@ class Webhook(Base):
 
     def __repr__(self):
         return f"<Webhook(url='{self.url}', event='{self.event_type}')>"
+
+
+class TwitterCommunity(Base):
+    """Model for Twitter communities."""
+
+    __tablename__ = "twitter_communities"
+
+    id = Column(Integer, primary_key=True, index=True)
+    community_id = Column(String(255), unique=True, nullable=False, index=True)
+
+    name = Column(String(500), nullable=False)
+    description = Column(Text)
+
+    # Stats
+    member_count = Column(Integer, default=0)
+    admin_count = Column(Integer, default=0)
+    moderator_count = Column(Integer, default=0)
+
+    # Community metadata
+    created_at_twitter = Column(DateTime, nullable=True)
+    rules = Column(JSON)  # List of community rules
+    url = Column(String(512))
+
+    # Tracking configuration
+    is_tracked = Column(Boolean, default=False)
+    check_interval = Column(Integer, default=3600)  # seconds (default: 1 hour)
+    last_scraped = Column(DateTime, nullable=True)
+
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<TwitterCommunity(community_id='{self.community_id}', name='{self.name}')>"

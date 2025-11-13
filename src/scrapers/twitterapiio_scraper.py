@@ -260,3 +260,138 @@ class TwitterAPIioScraper:
         except Exception as e:
             logger.error(f"Error searching via TwitterAPI.io: {e}")
             return []
+
+    async def get_community(self, community_id: str) -> Optional[Dict]:
+        """
+        Get Twitter community details using TwitterAPI.io.
+
+        Args:
+            community_id: Twitter community ID
+
+        Returns:
+            Dictionary containing community data or None if failed
+        """
+        logger.info(f"Getting community details via TwitterAPI.io: {community_id}")
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/communities/{community_id}",
+                    headers=self.headers,
+                    timeout=30.0
+                )
+
+                if response.status_code != 200:
+                    logger.error(f"Failed to get community: {response.text}")
+                    return None
+
+                data = response.json()
+                community = data.get('data', {})
+
+                community_data = {
+                    'community_id': community.get('id'),
+                    'name': community.get('name', ''),
+                    'description': community.get('description', ''),
+                    'member_count': community.get('member_count', 0),
+                    'admin_count': community.get('admin_count', 0),
+                    'moderator_count': community.get('moderator_count', 0),
+                    'created_at': community.get('created_at'),
+                    'rules': community.get('rules', []),
+                }
+
+                logger.info(f"Successfully fetched community: {community_data.get('name')}")
+                return community_data
+
+        except Exception as e:
+            logger.error(f"Error getting community via TwitterAPI.io: {e}")
+            return None
+
+    async def scrape_community_tweets(self, community_id: str, max_tweets: int = 100) -> List[Dict]:
+        """
+        Scrape tweets from a Twitter community using TwitterAPI.io.
+
+        Args:
+            community_id: Twitter community ID
+            max_tweets: Maximum number of tweets to scrape
+
+        Returns:
+            List of tweet dictionaries from the community
+        """
+        logger.info(f"Scraping community tweets via TwitterAPI.io: {community_id} (max {max_tweets})")
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/communities/{community_id}/tweets",
+                    headers=self.headers,
+                    params={
+                        "max_results": min(max_tweets, 100),
+                        "tweet.fields": "created_at,public_metrics,entities,author_id,referenced_tweets"
+                    },
+                    timeout=30.0
+                )
+
+                if response.status_code != 200:
+                    logger.error(f"Failed to get community tweets: {response.text}")
+                    return []
+
+                data = response.json()
+                tweets_list = data.get('data', [])
+
+                # Get user info if includes field is present
+                users_dict = {}
+                if 'includes' in data and 'users' in data['includes']:
+                    users_dict = {user['id']: user for user in data['includes']['users']}
+
+                # Map to our format
+                tweets = []
+                for tweet in tweets_list:
+                    # Get author username
+                    author_id = tweet.get('author_id')
+                    username = None
+                    if author_id and author_id in users_dict:
+                        username = users_dict[author_id].get('username')
+
+                    # Extract entities
+                    entities = tweet.get('entities', {})
+                    hashtags = [tag['tag'] for tag in entities.get('hashtags', [])]
+                    mentions = [mention['username'] for mention in entities.get('mentions', [])]
+                    urls = [url['expanded_url'] for url in entities.get('urls', [])]
+
+                    # Get metrics
+                    metrics = tweet.get('public_metrics', {})
+
+                    # Check if retweet or reply
+                    referenced = tweet.get('referenced_tweets', [])
+                    is_retweet = any(ref.get('type') == 'retweeted' for ref in referenced)
+                    is_reply = any(ref.get('type') == 'replied_to' for ref in referenced)
+
+                    tweet_data = {
+                        'tweet_id': tweet.get('id'),
+                        'username': username,
+                        'text': tweet.get('text', ''),
+                        'html_text': tweet.get('text', ''),
+                        'posted_at': datetime.fromisoformat(tweet.get('created_at', '').replace('Z', '+00:00')) if tweet.get('created_at') else datetime.utcnow(),
+                        'likes_count': metrics.get('like_count', 0),
+                        'retweets_count': metrics.get('retweet_count', 0),
+                        'replies_count': metrics.get('reply_count', 0),
+                        'quotes_count': metrics.get('quote_count', 0),
+                        'is_retweet': is_retweet,
+                        'is_reply': is_reply,
+                        'reply_to_username': None,
+                        'has_media': False,
+                        'media_urls': [],
+                        'hashtags': hashtags,
+                        'mentions': mentions,
+                        'urls': urls,
+                        'community_id': community_id,  # Add community context
+                    }
+
+                    tweets.append(tweet_data)
+
+                logger.info(f"Successfully scraped {len(tweets)} tweets from community via TwitterAPI.io")
+                return tweets
+
+        except Exception as e:
+            logger.error(f"Error scraping community tweets via TwitterAPI.io: {e}")
+            return []

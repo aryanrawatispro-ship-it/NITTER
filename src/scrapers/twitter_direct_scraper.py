@@ -416,3 +416,138 @@ class TwitterDirectScraper(BaseScraper):
         except Exception as e:
             logger.debug(f"Error extracting tweet data: {e}")
             return None
+
+    async def scrape_community_tweets(self, community_id: str, max_tweets: int = 100) -> List[Dict]:
+        """
+        Scrape tweets from a Twitter community.
+
+        Args:
+            community_id: Twitter community ID
+            max_tweets: Maximum number of tweets to scrape
+
+        Returns:
+            List of tweet dictionaries from the community
+        """
+        logger.info(f"Scraping Twitter community: {community_id} (max {max_tweets} tweets)")
+
+        # Login if needed (communities require authentication)
+        if not self.is_logged_in:
+            if self.cookies or (self.twitter_username and self.twitter_password):
+                await self.login()
+            else:
+                logger.error("Community scraping requires authentication (cookies or credentials)")
+                return []
+
+        # Navigate to community page
+        community_url = f"{self.base_url}/i/communities/{community_id}"
+        success = await self.navigate_to_url(community_url)
+        if not success:
+            logger.error(f"Failed to navigate to community: {community_id}")
+            return []
+
+        await self.random_delay()
+
+        tweets = []
+        try:
+            # Wait for tweets to load
+            await self.page.wait_for_selector('article[data-testid="tweet"]', timeout=10000)
+
+            scroll_attempts = 0
+            max_scrolls = 20  # Limit scrolling to prevent infinite loops
+            seen_tweet_ids = set()
+
+            while len(tweets) < max_tweets and scroll_attempts < max_scrolls:
+                # Get all tweet articles
+                articles = await self.page.query_selector_all('article[data-testid="tweet"]')
+
+                for article in articles:
+                    if len(tweets) >= max_tweets:
+                        break
+
+                    tweet_data = await self._extract_tweet_data(article)
+                    if tweet_data and tweet_data['tweet_id'] not in seen_tweet_ids:
+                        # Add community_id to the tweet data
+                        tweet_data['community_id'] = community_id
+                        tweets.append(tweet_data)
+                        seen_tweet_ids.add(tweet_data['tweet_id'])
+
+                # Scroll down to load more
+                if len(tweets) < max_tweets:
+                    await self.page.evaluate('window.scrollBy(0, 1000)')
+                    await asyncio.sleep(2)
+                    scroll_attempts += 1
+                else:
+                    break
+
+            logger.info(f"Successfully scraped {len(tweets)} tweets from community {community_id}")
+            return tweets
+
+        except Exception as e:
+            logger.error(f"Error scraping community tweets: {e}")
+            return tweets  # Return what we got so far
+
+    async def get_community(self, community_id: str) -> Optional[Dict]:
+        """
+        Get Twitter community details.
+
+        Args:
+            community_id: Twitter community ID
+
+        Returns:
+            Dictionary containing community data or None if failed
+        """
+        logger.info(f"Getting community details: {community_id}")
+
+        # Login if needed (communities require authentication)
+        if not self.is_logged_in:
+            if self.cookies or (self.twitter_username and self.twitter_password):
+                await self.login()
+            else:
+                logger.error("Community access requires authentication (cookies or credentials)")
+                return None
+
+        # Navigate to community page
+        community_url = f"{self.base_url}/i/communities/{community_id}"
+        success = await self.navigate_to_url(community_url)
+        if not success:
+            logger.error(f"Failed to navigate to community: {community_id}")
+            return None
+
+        await self.random_delay()
+
+        try:
+            # Wait for page to load
+            await asyncio.sleep(3)
+
+            # Extract community name
+            name_element = await self.page.query_selector('[data-testid="UserName"]')
+            name = await name_element.text_content() if name_element else ''
+
+            # Extract community description
+            description_element = await self.page.query_selector('[data-testid="UserDescription"]')
+            description = await description_element.text_content() if description_element else ''
+
+            # Extract member count (usually shown as "X members")
+            member_count = 0
+            try:
+                members_element = await self.page.query_selector('span:has-text("members")')
+                if members_element:
+                    members_text = await members_element.text_content()
+                    member_count = self._parse_number(members_text)
+            except:
+                pass
+
+            community_data = {
+                'community_id': community_id,
+                'name': name.strip(),
+                'description': description.strip(),
+                'member_count': member_count,
+                'url': community_url,
+            }
+
+            logger.info(f"Successfully fetched community: {community_data.get('name')}")
+            return community_data
+
+        except Exception as e:
+            logger.error(f"Error getting community details: {e}")
+            return None
