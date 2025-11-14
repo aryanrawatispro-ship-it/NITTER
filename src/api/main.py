@@ -1,14 +1,14 @@
 """
-FastAPI main application.
+FastAPI main application - Community Scraper Only.
 """
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 import sys
 
 from src.utils.config import settings
-from src.api.routes import users, tweets, search, jobs, webhooks, export, dashboard
+from src.api.routes import communities, export
 
 # Configure logging
 logger.remove()
@@ -26,9 +26,9 @@ logger.add(
 
 # Create FastAPI app
 app = FastAPI(
-    title="Nitter Twitter Scraper API",
-    description="API for scraping and analyzing Twitter data using Nitter instances",
-    version="1.0.0",
+    title="Twitter Community Scraper API",
+    description="API for scraping Twitter Community tweets using TwitterAPI.io or Twitter Direct",
+    version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -42,22 +42,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(users.router, prefix="/api/users", tags=["Users"])
-app.include_router(tweets.router, prefix="/api/tweets", tags=["Tweets"])
-app.include_router(search.router, prefix="/api/search", tags=["Search"])
-app.include_router(jobs.router, prefix="/api/jobs", tags=["Jobs"])
-app.include_router(webhooks.router, prefix="/api/webhooks", tags=["Webhooks"])
+# Include routers - ONLY communities and export!
+app.include_router(communities.router, prefix="/api/communities", tags=["Communities"])
 app.include_router(export.router, prefix="/api/export", tags=["Export"])
-app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 
 
 @app.get("/")
 async def root():
     """Root endpoint."""
     return {
-        "message": "Nitter Twitter Scraper API",
-        "version": "1.0.0",
+        "message": "Twitter Community Scraper API",
+        "version": "2.0.0",
+        "description": "Scrape tweets from Twitter Communities",
         "docs": "/docs",
         "status": "running"
     }
@@ -68,21 +64,22 @@ async def health_check():
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "version": "1.0.0"
+        "version": "2.0.0"
     }
 
 
 @app.on_event("startup")
 async def startup_event():
     """Run on application startup."""
-    logger.info("Starting Nitter Scraper API...")
+    logger.info("Starting Twitter Community Scraper API...")
     logger.info(f"API running on {settings.api_host}:{settings.api_port}")
+    logger.info("Endpoints: /api/communities, /api/export")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Run on application shutdown."""
-    logger.info("Shutting down Nitter Scraper API...")
+    logger.info("Shutting down Twitter Community Scraper API...")
 
 
 if __name__ == "__main__":
