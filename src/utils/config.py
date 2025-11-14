@@ -11,13 +11,13 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = Field(
-        default="postgresql://nitter_user:nitter_pass@localhost:5432/nitter_db",
+        default="postgresql://nitter_user:nitter_pass@postgres:5432/nitter_db",
         alias="DATABASE_URL"
     )
 
     # Redis
     redis_url: str = Field(
-        default="redis://localhost:6379/0",
+        default="redis://redis:6379/0",
         alias="REDIS_URL"
     )
 
@@ -31,34 +31,16 @@ class Settings(BaseSettings):
 
     # Celery
     celery_broker_url: str = Field(
-        default="redis://localhost:6379/0",
+        default="redis://redis:6379/0",
         alias="CELERY_BROKER_URL"
     )
     celery_result_backend: str = Field(
-        default="redis://localhost:6379/0",
+        default="redis://redis:6379/0",
         alias="CELERY_RESULT_BACKEND"
     )
 
-    # Scraping
-    min_request_delay: int = Field(default=2, alias="MIN_REQUEST_DELAY")
-    max_request_delay: int = Field(default=8, alias="MAX_REQUEST_DELAY")
-    max_retries: int = Field(default=3, alias="MAX_RETRIES")
-    health_check_interval: int = Field(default=300, alias="HEALTH_CHECK_INTERVAL")
-    request_timeout: int = Field(default=30, alias="REQUEST_TIMEOUT")
-
-    # Twitter Direct Scraping
-    use_twitter_direct: bool = Field(default=False, alias="USE_TWITTER_DIRECT")
-    twitter_username: str = Field(default="", alias="TWITTER_USERNAME")
-    twitter_password: str = Field(default="", alias="TWITTER_PASSWORD")
-    twitter_cookies_file: str = Field(default="", alias="TWITTER_COOKIES_FILE")
-
-    # TwitterAPI.io (unofficial API service)
-    use_twitterapiio: bool = Field(default=False, alias="USE_TWITTERAPIIO")
+    # TwitterAPI.io (required for community scraping)
     twitterapiio_api_key: str = Field(default="", alias="TWITTERAPIIO_API_KEY")
-
-    # Proxy
-    use_proxy: bool = Field(default=False, alias="USE_PROXY")
-    proxy_url: str = Field(default="", alias="PROXY_URL")
 
     # Monitoring
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
