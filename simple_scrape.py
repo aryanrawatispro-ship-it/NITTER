@@ -27,7 +27,7 @@ class SimpleCommunityScraper:
         self.api_key = api_key
         self.base_url = "https://api.twitterapi.io/v1"
         self.headers = {
-            "Authorization": f"Bearer {api_key}",
+            "x-api-key": api_key,
             "Content-Type": "application/json"
         }
 
