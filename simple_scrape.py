@@ -25,7 +25,7 @@ class SimpleCommunityScraper:
 
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self.base_url = "https://api.twitterapi.io/v1"
+        self.base_url = "https://api.twitterapi.io"
         self.headers = {
             "x-api-key": api_key,
             "Content-Type": "application/json"
